@@ -9,6 +9,16 @@
   <img src="https://img.shields.io/badge/Status-Active-brightgreen.svg" alt="Status">
 </p>
 
+<p align="center">
+  <a href="https://aquaguardai.streamlit.app/">
+    <img src="https://img.shields.io/badge/🚀_Live_Demo-AquaGuard_AI-FF4B4B?style=for-the-badge" alt="Live Demo">
+  </a>
+</p>
+
+<p align="center">
+  <b>👉 <a href="https://aquaguardai.streamlit.app/">Try the Live Demo</a> 👈</b>
+</p>
+
 ---
 
 ## 🎯 Project Overview
