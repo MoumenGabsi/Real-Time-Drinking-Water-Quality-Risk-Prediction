@@ -19,13 +19,13 @@ AquaGuard AI is an intelligent water quality monitoring system that uses **machi
 
 ### Key Features
 
-| Feature | Description |
-|---------|-------------|
-| 🤖 **AI Risk Prediction** | Random Forest model predicting water quality risk index (R² = 0.99) |
-| 🔮 **Predictive Analytics** | Time-series trend analysis to forecast future sensor values |
-| ⚠️ **Early Warning System** | Alerts hours before thresholds are breached |
-| 🌐 **Interactive Dashboard** | Modern glassmorphism UI with animated water flow visualization |
-| 🎛️ **Manual Controls** | Adjust sensor values to simulate scenarios |
+| Feature                      | Description                                                         |
+| ---------------------------- | ------------------------------------------------------------------- |
+| 🤖 **AI Risk Prediction**    | Random Forest model predicting water quality risk index (R² = 0.99) |
+| 🔮 **Predictive Analytics**  | Time-series trend analysis to forecast future sensor values         |
+| ⚠️ **Early Warning System**  | Alerts hours before thresholds are breached                         |
+| 🌐 **Interactive Dashboard** | Modern glassmorphism UI with animated water flow visualization      |
+| 🎛️ **Manual Controls**       | Adjust sensor values to simulate scenarios                          |
 
 ---
 
@@ -67,27 +67,29 @@ AquaGuard AI is an intelligent water quality monitoring system that uses **machi
 
 ## 📊 Sensor Parameters
 
-| Sensor | Range | Unit | Purpose |
-|--------|-------|------|---------|
-| **Chlorine** | 0.1 - 2.5 | mg/L | Disinfection effectiveness |
-| **pH** | 6.0 - 9.0 | - | Chemical balance |
-| **Turbidity** | 0.1 - 8.0 | NTU | Contamination indicator |
-| **Pressure** | 2.0 - 6.0 | bar | Leak/intrusion detection |
-| **Flow** | 0.5 - 5.0 | m³/h | Stagnation detection |
-| **Conductivity** | 150 - 1000 | µS/cm | Dissolved solids |
-| **Temperature** | 10 - 30 | °C | Decay rate factor |
+| Sensor           | Range      | Unit  | Purpose                    |
+| ---------------- | ---------- | ----- | -------------------------- |
+| **Chlorine**     | 0.1 - 2.5  | mg/L  | Disinfection effectiveness |
+| **pH**           | 6.0 - 9.0  | -     | Chemical balance           |
+| **Turbidity**    | 0.1 - 8.0  | NTU   | Contamination indicator    |
+| **Pressure**     | 2.0 - 6.0  | bar   | Leak/intrusion detection   |
+| **Flow**         | 0.5 - 5.0  | m³/h  | Stagnation detection       |
+| **Conductivity** | 150 - 1000 | µS/cm | Dissolved solids           |
+| **Temperature**  | 10 - 30    | °C    | Decay rate factor          |
 
 ---
 
 ## 🔮 How Prediction Works
 
 ### 1️⃣ Data Collection
+
 ```python
 # Sensor readings stored with timestamps
 history.add_reading(region, sensor_data, timestamp)
 ```
 
 ### 2️⃣ Trend Detection
+
 ```python
 # Linear regression on recent values
 rate_per_hour = calculate_trend(values)
@@ -95,16 +97,18 @@ rate_per_hour = calculate_trend(values)
 ```
 
 ### 3️⃣ Future Prediction
+
 ```
 Predicted Value = Current + (Rate × Hours)
 
 Example:
   Current chlorine: 0.8 mg/L
-  Rate: -0.1 mg/L/hour  
+  Rate: -0.1 mg/L/hour
   In 6 hours: 0.8 + (-0.1 × 6) = 0.2 mg/L (DANGER!)
 ```
 
 ### 4️⃣ Early Warning
+
 ```
 ⚠️ Time to Threshold = (Threshold - Current) / Rate
 
@@ -117,11 +121,13 @@ Example:
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 ```bash
 pip install streamlit pandas numpy scikit-learn joblib
 ```
 
 ### Run the Application
+
 ```bash
 # Train the model (first time only)
 python model.py
@@ -131,6 +137,7 @@ streamlit run app.py
 ```
 
 ### Access
+
 Open your browser to: **http://localhost:8501**
 
 ---
@@ -151,22 +158,24 @@ water_ai_project/
 
 ## 🧠 Machine Learning Model
 
-| Metric | Value |
-|--------|-------|
-| **Algorithm** | Random Forest Regressor |
-| **Trees** | 100 |
-| **Max Depth** | 15 |
-| **R² Score** | 0.9925 |
-| **MAE** | 1.68 |
-| **Training Samples** | 10,000 |
+| Metric               | Value                   |
+| -------------------- | ----------------------- |
+| **Algorithm**        | Random Forest Regressor |
+| **Trees**            | 100                     |
+| **Max Depth**        | 15                      |
+| **R² Score**         | 0.9925                  |
+| **MAE**              | 1.68                    |
+| **Training Samples** | 10,000                  |
 
 ### Features Used
+
 - Temperature, Flow, Pressure
 - Chlorine, pH, Turbidity
 - Conductivity
 - Hour of day, Weekend flag
 
 ### Training Scenarios
+
 1. Normal operation
 2. Contamination events
 3. Pipe leaks
@@ -183,16 +192,19 @@ water_ai_project/
 ## 🎨 Dashboard Features
 
 ### Network Visualization
+
 - Animated water flow through pipes
 - Color-coded risk status (🟢 Safe / 🟡 Warning / 🔴 Critical)
 - Interactive region cards with real-time metrics
 
 ### Predictive Analytics Panel
+
 - Trend indicators (↑ ↓ →) for each sensor
 - Rate of change per hour
 - Early warnings with time-to-threshold
 
 ### AI Analysis
+
 - Automatic root cause detection
 - Dangerous combination warnings
 - Consequence explanations
@@ -215,12 +227,13 @@ Where:
 ```
 
 ### Interaction Penalties
-| Combination | Penalty | Consequence |
-|-------------|---------|-------------|
-| Low chlorine + High turbidity | +15 | Pathogen growth risk |
-| Low pressure + High turbidity | +12 | Backflow contamination |
-| Low flow + Low chlorine | +10 | Biofilm formation |
-| Acidic pH + Low chlorine | +8 | Pipe corrosion |
+
+| Combination                   | Penalty | Consequence            |
+| ----------------------------- | ------- | ---------------------- |
+| Low chlorine + High turbidity | +15     | Pathogen growth risk   |
+| Low pressure + High turbidity | +12     | Backflow contamination |
+| Low flow + Low chlorine       | +10     | Biofilm formation      |
+| Acidic pH + Low chlorine      | +8      | Pipe corrosion         |
 
 ---
 
@@ -234,7 +247,7 @@ This project was built for the **WEDTECT Challenge** and meets all requirements:
 ✅ Contamination anticipation before critical  
 ✅ Root cause identification  
 ✅ Interactive dashboard  
-✅ Early warning system  
+✅ Early warning system
 
 ---
 
