@@ -1,6 +1,6 @@
 """
 AI Smart Water Quality Monitoring Dashboard
-Modern, compact design with real-time pipe visualization.
+Modern, compact design with real-time pipe visualization and PREDICTIVE ANALYTICS.
 """
 
 import streamlit as st
@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,7 +22,14 @@ from simulation import (
     SENSOR_RANGES,
     REGION_PROFILES,
     IDEAL_VALUES,
-    TEMPORAL_RISK_FACTORS
+    TEMPORAL_RISK_FACTORS,
+    CRITICAL_THRESHOLDS,
+    SensorHistory,
+    calculate_trend,
+    generate_predictions,
+    generate_early_warnings,
+    get_trend_summary,
+    simulate_history_for_demo
 )
 from model import predict_risk, load_model, MODEL_PATH
 
@@ -42,6 +49,25 @@ st.markdown("""
     
     .stApp {
         background: linear-gradient(135deg, #0a1628 0%, #162544 50%, #0d1f35 100%);
+    }
+    
+    /* Global button enhancements */
+    .stButton > button {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%) !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+        height: auto !important;
+        min-height: 42px !important;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.4) 0%, rgba(139, 92, 246, 0.4) 100%) !important;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important;
+        transform: translateY(-2px) !important;
+        border-color: rgba(0, 212, 255, 0.6) !important;
     }
     
     .main-title {
@@ -580,6 +606,194 @@ st.markdown("""
         padding-top: 15px;
         border-top: 1px solid rgba(0, 212, 255, 0.2);
     }
+    
+    /* ===== ENHANCED BUTTON STYLES ===== */
+    .prediction-panel .stButton > button {
+        background: linear-gradient(135deg, rgba(236, 72, 153, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%) !important;
+        border: 1px solid rgba(236, 72, 153, 0.4) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        padding: 10px 20px !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .prediction-panel .stButton > button:hover {
+        background: linear-gradient(135deg, rgba(236, 72, 153, 0.5) 0%, rgba(139, 92, 246, 0.5) 100%) !important;
+        box-shadow: 0 0 20px rgba(236, 72, 153, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    /* ===== PREDICTIVE ANALYTICS PANEL ===== */
+    .prediction-panel {
+        background: linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        border: 1px solid rgba(236, 72, 153, 0.25);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .prediction-title {
+        color: #ec4899;
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .trend-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin: 15px 0;
+    }
+    
+    .trend-item {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .trend-sensor {
+        color: #a0aec0;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 5px;
+    }
+    
+    .trend-value {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 5px 0;
+    }
+    
+    .trend-rate {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 10px;
+        display: inline-block;
+    }
+    
+    .trend-up { color: #f59e0b; }
+    .trend-down { color: #3b82f6; }
+    .trend-stable { color: #10b981; }
+    .trend-unknown { color: #6b7280; }
+    
+    .rate-up { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .rate-down { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .rate-stable { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    
+    /* Early Warning Styles */
+    .warning-container {
+        margin-top: 15px;
+    }
+    
+    .early-warning {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 15px;
+        border-radius: 12px;
+        margin: 8px 0;
+        animation: warningPulse 2s ease-in-out infinite;
+    }
+    
+    .warning-danger {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    
+    .warning-warning {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    
+    .warning-icon {
+        font-size: 1.5rem;
+    }
+    
+    .warning-content {
+        flex: 1;
+    }
+    
+    .warning-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 3px;
+    }
+    
+    .warning-danger .warning-title { color: #ef4444; }
+    .warning-warning .warning-title { color: #f59e0b; }
+    
+    .warning-detail {
+        font-size: 0.75rem;
+        color: #a0aec0;
+    }
+    
+    .warning-time {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .warning-danger .warning-time { color: #ef4444; }
+    .warning-warning .warning-time { color: #f59e0b; }
+    
+    @keyframes warningPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.85; }
+    }
+    
+    .no-warnings {
+        text-align: center;
+        padding: 20px;
+        color: #10b981;
+        font-size: 0.9rem;
+    }
+    
+    .prediction-forecast {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .forecast-title {
+        color: #a78bfa;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+    
+    .forecast-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.8rem;
+    }
+    
+    .forecast-sensor {
+        color: #a0aec0;
+    }
+    
+    .forecast-values {
+        display: flex;
+        gap: 15px;
+    }
+    
+    .forecast-time {
+        color: #6b7280;
+        font-size: 0.7rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -621,11 +835,13 @@ def main():
     if 'editing_region' not in st.session_state:
         st.session_state.editing_region = None
     
-    # Initialize selected datetime
-    if 'selected_date' not in st.session_state:
-        st.session_state.selected_date = datetime.now().date()
-    if 'selected_hour' not in st.session_state:
-        st.session_state.selected_hour = datetime.now().hour
+    # Initialize sensor history for predictive analytics
+    if 'sensor_history' not in st.session_state:
+        st.session_state.sensor_history = SensorHistory(max_history=24)
+    
+    # Initialize demo scenario
+    if 'demo_scenario' not in st.session_state:
+        st.session_state.demo_scenario = 'normal'
     
     # Load model
     try:
@@ -639,58 +855,6 @@ def main():
     # Header
     st.markdown('<h1 class="main-title">💧 AquaGuard AI</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-title">Real-time Water Quality Intelligence System</p>', unsafe_allow_html=True)
-    
-    # Date/Time Selection
-    st.markdown('<div style="display: flex; justify-content: center; margin: 15px 0;">', unsafe_allow_html=True)
-    dt_col1, dt_col2, dt_col3 = st.columns([1, 2, 1])
-    with dt_col2:
-        date_time_cols = st.columns([1, 1])
-        with date_time_cols[0]:
-            selected_date = st.date_input("📅 Select Date", value=st.session_state.selected_date, key="date_picker")
-            st.session_state.selected_date = selected_date
-        with date_time_cols[1]:
-            selected_hour = st.slider("🕒 Hour", 0, 23, st.session_state.selected_hour, key="hour_slider")
-            st.session_state.selected_hour = selected_hour
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Build selected datetime
-    selected_datetime = datetime.combine(st.session_state.selected_date, datetime.min.time().replace(hour=st.session_state.selected_hour))
-    
-    # Get temporal info from selected date/time
-    current_temporal = get_temporal_features(selected_datetime)
-    time_period_display = current_temporal['time_period'].replace('_', ' ').title()
-    modifier = current_temporal['temporal_risk_modifier']
-    modifier_class = 'low' if modifier <= 1.0 else 'medium' if modifier <= 1.1 else 'high'
-    weekend_text = 'Weekend' if current_temporal['is_weekend'] else 'Weekday'
-    date_str = selected_datetime.strftime('%b %d, %Y')
-    
-    st.markdown(f'''
-    <div class="temporal-bar">
-        <div class="temporal-item">
-            <span class="temporal-icon">📆</span>
-            <span class="temporal-value">{date_str}</span>
-        </div>
-        <div class="temporal-item">
-            <span class="temporal-icon">🕒</span>
-            <span>Time:</span>
-            <span class="temporal-value">{current_temporal['hour']:02d}:00</span>
-        </div>
-        <div class="temporal-item">
-            <span class="temporal-icon">📅</span>
-            <span class="temporal-value">{weekend_text}</span>
-        </div>
-        <div class="temporal-item">
-            <span class="temporal-icon">⚡</span>
-            <span>Period:</span>
-            <span class="temporal-value">{time_period_display}</span>
-        </div>
-        <div class="temporal-item">
-            <span class="temporal-icon">🎯</span>
-            <span>Risk Modifier:</span>
-            <span class="temporal-modifier modifier-{modifier_class}">{modifier:.2f}x</span>
-        </div>
-    </div>
-    ''', unsafe_allow_html=True)
     
     # Function to get region info from data
     def compute_region_info(region, data):
@@ -713,7 +877,7 @@ def main():
     # Get data for all regions from stored values
     def get_region_data(region):
         vals = st.session_state.manual_values[region]
-        temporal = get_temporal_features(selected_datetime)
+        temporal = get_temporal_features(datetime.now())
         return {
             'temperature': vals['temperature'],
             'flow': vals['flow'],
@@ -833,7 +997,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Build live data from slider values (with temporal features)
-        temporal = get_temporal_features(selected_datetime)
+        temporal = get_temporal_features(datetime.now())
         live_data = {
             'temperature': new_temp,
             'chlorine': new_chlorine,
@@ -1007,6 +1171,109 @@ def main():
         <div class="ai-content">{interpretation_html}</div>
     </div>
     ''', unsafe_allow_html=True)
+    
+    # ===== PREDICTIVE ANALYTICS PANEL =====
+    st.markdown('<div class="prediction-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="prediction-title">🔮 Predictive Analytics - Early Warning System</div>', unsafe_allow_html=True)
+    
+    # Demo scenario selector and record button
+    pred_cols = st.columns([2, 1, 1])
+    with pred_cols[0]:
+        demo_scenario = st.selectbox(
+            "📊 Simulation Scenario",
+            ['normal', 'degrading_chlorine', 'rising_turbidity', 'pressure_drop'],
+            index=['normal', 'degrading_chlorine', 'rising_turbidity', 'pressure_drop'].index(st.session_state.demo_scenario),
+            key='scenario_select',
+            help="Select a scenario to see how the predictive system detects degradation patterns"
+        )
+        st.session_state.demo_scenario = demo_scenario
+    
+    with pred_cols[1]:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)  # Spacer to align with selectbox
+        if st.button("📝 Record Current", key="record_btn", help="Add current sensor values to history", use_container_width=True):
+            for region in ['A', 'B', 'C']:
+                st.session_state.sensor_history.add_reading(region, all_data[region])
+            st.success("Recorded!")
+    
+    with pred_cols[2]:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)  # Spacer to align with selectbox
+        if st.button("🎬 Load Demo History", key="demo_btn", help="Load 12h of simulated history", use_container_width=True):
+            for region in ['A', 'B', 'C']:
+                demo_history = simulate_history_for_demo(region, hours=12, scenario=demo_scenario)
+                st.session_state.sensor_history = demo_history
+            st.success(f"Loaded {demo_scenario} scenario!")
+            st.rerun()
+    
+    # Show predictions for each region
+    for region in ['A', 'B', 'C']:
+        region_name = REGION_PROFILES[region]['name']
+        history_count = len(st.session_state.sensor_history.get_values(region, 'chlorine'))
+        
+        if history_count >= 3:
+            predictions = generate_predictions(st.session_state.sensor_history, region)
+            warnings = generate_early_warnings(predictions, region)
+            trend_summary = get_trend_summary(predictions)
+            
+            # Region header
+            st.markdown(f"<h4 style='color: #ec4899; margin-top: 15px;'>Region {region} - {region_name}</h4>", unsafe_allow_html=True)
+            
+            # Trend grid - render as columns instead of HTML grid
+            trend_cols = st.columns(6)
+            for idx, sensor in enumerate(['chlorine', 'pH', 'turbidity', 'pressure', 'flow', 'conductivity']):
+                if sensor in trend_summary:
+                    ts = trend_summary[sensor]
+                    current_val = predictions[sensor]['trend'].get('current_value', 'N/A')
+                    if isinstance(current_val, float):
+                        current_val = f"{current_val:.2f}"
+                    
+                    # Color based on direction
+                    if ts['direction'] == 'increasing':
+                        color = "#f59e0b"
+                        symbol = "↑"
+                    elif ts['direction'] == 'decreasing':
+                        color = "#3b82f6"
+                        symbol = "↓"
+                    else:
+                        color = "#10b981"
+                        symbol = "→"
+                    
+                    with trend_cols[idx]:
+                        st.markdown(f"""
+                        <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                            <div style="color: #a0aec0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">{sensor}</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: {color}; margin: 5px 0;">{symbol} {current_val}</div>
+                            <div style="font-size: 0.7rem; padding: 3px 8px; border-radius: 10px; background: rgba(255,255,255,0.1); color: {color}; display: inline-block;">{ts['rate_str']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            # Early warnings
+            if warnings:
+                st.markdown('<div class="warning-container">', unsafe_allow_html=True)
+                for w in warnings[:3]:  # Show top 3 warnings
+                    warning_class = f"warning-{w['type']}"
+                    icon = "🚨" if w['type'] == 'danger' else "⚠️"
+                    st.markdown(f'''
+                    <div class="early-warning {warning_class}">
+                        <div class="warning-icon">{icon}</div>
+                        <div class="warning-content">
+                            <div class="warning-title">{w['sensor'].title()} Alert</div>
+                            <div class="warning-detail">{w['message']}</div>
+                        </div>
+                        <div class="warning-time">~{w['hours_until']:.1f}h</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="no-warnings">✅ No degradation trends detected - System stable</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="color: #6b7280; padding: 10px; text-align: center;">
+                Region {region}: Need more data points ({history_count}/3 minimum). 
+                Click "Record Current" or "Load Demo History" to add data.
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # ===== QUICK STATS BAR =====
     stat_cols = st.columns(4)

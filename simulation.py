@@ -1,12 +1,13 @@
 """
 Water Distribution Network Simulation Module (Upgraded)
 Simulates real-time sensor data for 3 regions with realistic physical dependencies.
-Engineering-grade simulation with parameter interactions.
+Engineering-grade simulation with parameter interactions and PREDICTIVE ANALYTICS.
 """
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import deque
 import random
 
 
@@ -57,6 +58,16 @@ TEMPORAL_RISK_FACTORS = {
     'day': {'hours': range(9, 17), 'risk_modifier': 1.0, 'reason': 'Normal operation'},
     'evening_peak': {'hours': range(17, 21), 'risk_modifier': 1.08, 'reason': 'Evening peak - high demand'},
     'late_evening': {'hours': range(21, 24), 'risk_modifier': 1.05, 'reason': 'Declining usage'}
+}
+
+# Critical thresholds for predictive warnings
+CRITICAL_THRESHOLDS = {
+    'chlorine': {'danger_low': 0.2, 'warning_low': 0.5, 'warning_high': 2.0, 'danger_high': 2.5, 'unit': 'mg/L'},
+    'pH': {'danger_low': 6.0, 'warning_low': 6.5, 'warning_high': 8.5, 'danger_high': 9.0, 'unit': ''},
+    'turbidity': {'danger_low': None, 'warning_low': None, 'warning_high': 1.0, 'danger_high': 4.0, 'unit': 'NTU'},
+    'pressure': {'danger_low': 2.0, 'warning_low': 2.5, 'warning_high': 6.0, 'danger_high': 7.0, 'unit': 'bar'},
+    'flow': {'danger_low': 0.3, 'warning_low': 1.0, 'warning_high': None, 'danger_high': None, 'unit': 'm³/h'},
+    'conductivity': {'danger_low': None, 'warning_low': None, 'warning_high': 600, 'danger_high': 800, 'unit': 'µS/cm'}
 }
 
 
@@ -740,6 +751,374 @@ def generate_ai_interpretation(data: dict, risk_score: float, root_cause: str, r
     parts.extend(findings)
     
     return " | ".join(parts)
+
+
+# =============================================================================
+# PREDICTIVE ANALYTICS MODULE - Time-Series Forecasting
+# =============================================================================
+
+class SensorHistory:
+    """
+    Manages historical sensor data for trend analysis and prediction.
+    Uses a rolling window to track values over time.
+    """
+    
+    def __init__(self, max_history: int = 24):
+        """
+        Initialize history tracker.
+        
+        Args:
+            max_history: Maximum number of data points to keep (default: 24 hours worth)
+        """
+        self.max_history = max_history
+        self.history = {}  # {region: {sensor: deque of (timestamp, value)}}
+        self.tracked_sensors = ['chlorine', 'pH', 'turbidity', 'pressure', 'flow', 'conductivity', 'temperature']
+    
+    def add_reading(self, region: str, data: dict, timestamp: datetime = None):
+        """Add a sensor reading to history."""
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        if region not in self.history:
+            self.history[region] = {sensor: deque(maxlen=self.max_history) for sensor in self.tracked_sensors}
+        
+        for sensor in self.tracked_sensors:
+            if sensor in data:
+                self.history[region][sensor].append((timestamp, data[sensor]))
+    
+    def get_history(self, region: str, sensor: str) -> list:
+        """Get history for a specific region and sensor."""
+        if region not in self.history or sensor not in self.history[region]:
+            return []
+        return list(self.history[region][sensor])
+    
+    def get_values(self, region: str, sensor: str) -> list:
+        """Get just the values (without timestamps) for a sensor."""
+        history = self.get_history(region, sensor)
+        return [v for _, v in history]
+
+
+def calculate_trend(values: list, min_points: int = 3) -> dict:
+    """
+    Calculate the trend (rate of change) from a list of values.
+    
+    Args:
+        values: List of sensor values (chronological order)
+        min_points: Minimum data points needed for trend calculation
+    
+    Returns:
+        dict with trend info: rate_per_hour, direction, confidence, values_used
+    """
+    if len(values) < min_points:
+        return {
+            'rate_per_hour': 0.0,
+            'direction': 'stable',
+            'confidence': 0.0,
+            'values_used': len(values),
+            'sufficient_data': False
+        }
+    
+    # Use last N values for trend
+    recent = values[-min(8, len(values)):]  # Max 8 most recent
+    
+    # Simple linear regression
+    n = len(recent)
+    x = np.arange(n)  # Assume hourly intervals
+    y = np.array(recent)
+    
+    # Calculate slope (rate of change per hour)
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    numerator = np.sum((x - x_mean) * (y - y_mean))
+    denominator = np.sum((x - x_mean) ** 2)
+    
+    if denominator == 0:
+        slope = 0.0
+    else:
+        slope = numerator / denominator
+    
+    # Calculate R² for confidence
+    y_pred = y_mean + slope * (x - x_mean)
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - y_mean) ** 2)
+    
+    if ss_tot == 0:
+        r_squared = 0.0
+    else:
+        r_squared = 1 - (ss_res / ss_tot)
+    
+    # Determine direction
+    if abs(slope) < 0.01:
+        direction = 'stable'
+    elif slope > 0:
+        direction = 'increasing'
+    else:
+        direction = 'decreasing'
+    
+    return {
+        'rate_per_hour': round(slope, 4),
+        'direction': direction,
+        'confidence': round(max(0, r_squared), 2),
+        'values_used': n,
+        'sufficient_data': True,
+        'current_value': recent[-1],
+        'avg_value': round(np.mean(recent), 3)
+    }
+
+
+def predict_future_value(current_value: float, rate_per_hour: float, hours_ahead: int) -> float:
+    """Predict future value based on current trend."""
+    return current_value + (rate_per_hour * hours_ahead)
+
+
+def calculate_time_to_threshold(current_value: float, rate_per_hour: float, 
+                                  threshold: float, direction: str = 'any') -> float:
+    """
+    Calculate hours until a threshold is reached.
+    
+    Args:
+        current_value: Current sensor value
+        rate_per_hour: Rate of change per hour
+        threshold: Target threshold value
+        direction: 'increasing', 'decreasing', or 'any'
+    
+    Returns:
+        Hours until threshold (float), or float('inf') if won't be reached
+    """
+    if rate_per_hour == 0:
+        return float('inf')
+    
+    time_to_threshold = (threshold - current_value) / rate_per_hour
+    
+    # Check if direction is consistent
+    if time_to_threshold < 0:
+        return float('inf')  # Won't reach threshold moving this direction
+    
+    if direction == 'increasing' and rate_per_hour < 0:
+        return float('inf')
+    if direction == 'decreasing' and rate_per_hour > 0:
+        return float('inf')
+    
+    return round(time_to_threshold, 1)
+
+
+def generate_predictions(sensor_history: SensorHistory, region: str, 
+                         hours_ahead: list = [1, 3, 6, 12]) -> dict:
+    """
+    Generate predictions for all sensors in a region.
+    
+    Args:
+        sensor_history: SensorHistory object with historical data
+        region: Region identifier
+        hours_ahead: List of hours to predict ahead
+    
+    Returns:
+        dict with predictions for each sensor
+    """
+    predictions = {}
+    
+    for sensor in sensor_history.tracked_sensors:
+        values = sensor_history.get_values(region, sensor)
+        trend = calculate_trend(values)
+        
+        sensor_pred = {
+            'trend': trend,
+            'predictions': {},
+            'warnings': []
+        }
+        
+        if trend['sufficient_data']:
+            current = trend['current_value']
+            rate = trend['rate_per_hour']
+            
+            # Predict future values
+            for hours in hours_ahead:
+                predicted = predict_future_value(current, rate, hours)
+                sensor_pred['predictions'][hours] = round(predicted, 3)
+            
+            # Check against thresholds
+            if sensor in CRITICAL_THRESHOLDS:
+                thresholds = CRITICAL_THRESHOLDS[sensor]
+                
+                # Check danger low
+                if thresholds['danger_low'] is not None and rate < 0:
+                    time_to_danger = calculate_time_to_threshold(
+                        current, rate, thresholds['danger_low'], 'decreasing'
+                    )
+                    if time_to_danger < 6:
+                        sensor_pred['warnings'].append({
+                            'type': 'danger',
+                            'message': f"CRITICAL: {sensor.title()} will reach dangerous low ({thresholds['danger_low']} {thresholds['unit']}) in ~{time_to_danger:.1f} hours",
+                            'hours_until': time_to_danger,
+                            'threshold': thresholds['danger_low']
+                        })
+                
+                # Check warning low
+                if thresholds['warning_low'] is not None and rate < 0:
+                    time_to_warning = calculate_time_to_threshold(
+                        current, rate, thresholds['warning_low'], 'decreasing'
+                    )
+                    if time_to_warning < 12 and time_to_warning > 0:
+                        sensor_pred['warnings'].append({
+                            'type': 'warning',
+                            'message': f"WARNING: {sensor.title()} trending toward low ({thresholds['warning_low']} {thresholds['unit']}) in ~{time_to_warning:.1f} hours",
+                            'hours_until': time_to_warning,
+                            'threshold': thresholds['warning_low']
+                        })
+                
+                # Check danger high
+                if thresholds['danger_high'] is not None and rate > 0:
+                    time_to_danger = calculate_time_to_threshold(
+                        current, rate, thresholds['danger_high'], 'increasing'
+                    )
+                    if time_to_danger < 6:
+                        sensor_pred['warnings'].append({
+                            'type': 'danger',
+                            'message': f"CRITICAL: {sensor.title()} will reach dangerous high ({thresholds['danger_high']} {thresholds['unit']}) in ~{time_to_danger:.1f} hours",
+                            'hours_until': time_to_danger,
+                            'threshold': thresholds['danger_high']
+                        })
+                
+                # Check warning high
+                if thresholds['warning_high'] is not None and rate > 0:
+                    time_to_warning = calculate_time_to_threshold(
+                        current, rate, thresholds['warning_high'], 'increasing'
+                    )
+                    if time_to_warning < 12 and time_to_warning > 0:
+                        sensor_pred['warnings'].append({
+                            'type': 'warning',
+                            'message': f"WARNING: {sensor.title()} trending toward high ({thresholds['warning_high']} {thresholds['unit']}) in ~{time_to_warning:.1f} hours",
+                            'hours_until': time_to_warning,
+                            'threshold': thresholds['warning_high']
+                        })
+        
+        predictions[sensor] = sensor_pred
+    
+    return predictions
+
+
+def generate_early_warnings(predictions: dict, region: str) -> list:
+    """
+    Generate aggregated early warnings from predictions.
+    
+    Returns list of warning objects sorted by urgency.
+    """
+    warnings = []
+    
+    for sensor, pred_data in predictions.items():
+        for warning in pred_data.get('warnings', []):
+            warnings.append({
+                'region': region,
+                'sensor': sensor,
+                **warning
+            })
+    
+    # Sort by urgency (hours until threshold, danger before warning)
+    warnings.sort(key=lambda w: (0 if w['type'] == 'danger' else 1, w['hours_until']))
+    
+    return warnings
+
+
+def get_trend_summary(predictions: dict) -> dict:
+    """
+    Get a summary of all trends for display.
+    
+    Returns dict with trend direction and rate for each sensor.
+    """
+    summary = {}
+    
+    for sensor, pred_data in predictions.items():
+        trend = pred_data.get('trend', {})
+        if trend.get('sufficient_data', False):
+            direction = trend['direction']
+            rate = trend['rate_per_hour']
+            
+            # Format rate nicely
+            if direction == 'increasing':
+                symbol = '↑'
+                rate_str = f"+{abs(rate):.3f}/hr"
+            elif direction == 'decreasing':
+                symbol = '↓'
+                rate_str = f"-{abs(rate):.3f}/hr"
+            else:
+                symbol = '→'
+                rate_str = "stable"
+            
+            summary[sensor] = {
+                'direction': direction,
+                'symbol': symbol,
+                'rate': rate,
+                'rate_str': rate_str,
+                'confidence': trend['confidence']
+            }
+        else:
+            summary[sensor] = {
+                'direction': 'unknown',
+                'symbol': '?',
+                'rate': 0,
+                'rate_str': 'insufficient data',
+                'confidence': 0
+            }
+    
+    return summary
+
+
+def simulate_history_for_demo(region: str, hours: int = 12, scenario: str = 'normal') -> SensorHistory:
+    """
+    Generate simulated historical data for demonstration purposes.
+    
+    Args:
+        region: Region identifier
+        hours: Number of hours of history to generate
+        scenario: 'normal', 'degrading_chlorine', 'rising_turbidity', 'pressure_drop'
+    
+    Returns:
+        SensorHistory object with simulated data
+    """
+    history = SensorHistory(max_history=24)
+    
+    base_time = datetime.now() - timedelta(hours=hours)
+    
+    # Base values
+    base_vals = {
+        'chlorine': 1.2,
+        'pH': 7.2,
+        'turbidity': 0.4,
+        'pressure': 4.0,
+        'flow': 2.5,
+        'conductivity': 400,
+        'temperature': 20.0
+    }
+    
+    # Scenario-specific trends (change per hour)
+    trends = {
+        'normal': {'chlorine': -0.01, 'turbidity': 0.02, 'pressure': 0, 'pH': 0},
+        'degrading_chlorine': {'chlorine': -0.08, 'turbidity': 0.03, 'pressure': -0.05, 'pH': -0.02},
+        'rising_turbidity': {'chlorine': -0.03, 'turbidity': 0.15, 'pressure': -0.1, 'pH': 0},
+        'pressure_drop': {'chlorine': -0.02, 'turbidity': 0.08, 'pressure': -0.15, 'pH': 0.01}
+    }
+    
+    scenario_trends = trends.get(scenario, trends['normal'])
+    
+    for h in range(hours):
+        timestamp = base_time + timedelta(hours=h)
+        
+        data = {}
+        for sensor in base_vals:
+            trend_rate = scenario_trends.get(sensor, 0)
+            noise = np.random.normal(0, 0.02)
+            value = base_vals[sensor] + (trend_rate * h) + noise
+            
+            # Clip to valid ranges
+            if sensor in SENSOR_RANGES:
+                value = np.clip(value, SENSOR_RANGES[sensor]['min'], SENSOR_RANGES[sensor]['max'])
+            
+            data[sensor] = round(value, 3)
+        
+        history.add_reading(region, data, timestamp)
+    
+    return history
 
 
 if __name__ == "__main__":
