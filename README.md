@@ -263,7 +263,6 @@ This project was built for the **WEDTECT Challenge** and meets all requirements:
 
 ## 👨‍💻 Author
 
-**Moumen Gabsi**
 **Dark_Mode_Devs**
 
 ---
