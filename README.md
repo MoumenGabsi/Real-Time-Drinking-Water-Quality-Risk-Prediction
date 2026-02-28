@@ -264,12 +264,11 @@ This project was built for the **WEDTECT Challenge** and meets all requirements:
 ## 👨‍💻 Author
 
 **Moumen Gabsi**
+**Dark_Mode_Devs**
 
 ---
 
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
 ---
 
