@@ -856,6 +856,18 @@ def main():
     st.markdown('<h1 class="main-title">💧 AquaGuard AI</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-title">Real-time Water Quality Intelligence System</p>', unsafe_allow_html=True)
     
+    # Video Demo Button
+    st.markdown('''
+    <div style="text-align: center; margin: 15px 0;">
+        <a href="https://drive.google.com/file/d/1DTbMbCOfG-h2KtBr2mweSFL8sDKBzo_s/view" target="_blank" style="text-decoration: none;">
+            <div style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%); border: 1px solid rgba(239, 68, 68, 0.4); padding: 12px 24px; border-radius: 30px; cursor: pointer; transition: all 0.3s ease;">
+                <span style="font-size: 1.3rem;">🎬</span>
+                <span style="color: #fff; font-weight: 600; font-size: 0.95rem;">Watch Demo Video</span>
+            </div>
+        </a>
+    </div>
+    ''', unsafe_allow_html=True)
+    
     # Function to get region info from data
     def compute_region_info(region, data):
         status, color = get_pipe_status(data)
